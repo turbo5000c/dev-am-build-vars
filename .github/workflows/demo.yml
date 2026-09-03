@@ -18,10 +18,23 @@ name: Demo
 
 on:
   workflow_dispatch:
+  # The same paths on both events: only what can change what the demo does, so
+  # the newest run on main is always current and a docs-only pull request pays
+  # nothing. Running on pull_request matters more than it looks -- a demo is
+  # the one workflow whose first execution must not be on main in public, and
+  # workflow_dispatch cannot cover that, because a workflow has to be on the
+  # default branch before it can be dispatched at all.
+  # Written out twice rather than shared with a YAML anchor: the Actions parser
+  # does not support anchors, and PyYAML accepts them, so that mistake passes
+  # every local check and fails only once GitHub reads the file.
   push:
     branches: [main]
-    # Only when something that changes the demo's behaviour changes, so the
-    # newest run is always a current one without a run on every commit.
+    paths:
+      - action.yml
+      - scripts/**
+      - am-build-vars.example.yml
+      - .github/workflows/demo.yml
+  pull_request:
     paths:
       - action.yml
       - scripts/**

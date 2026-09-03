@@ -647,7 +647,8 @@ does; this one is the four-job pipeline from this README — resolve, matrix, pu
 back — against this repository's own [`am-build-vars.example.yml`](am-build-vars.example.yml),
 with no fixtures and nothing asserted. Its job summary is the point: a table of every
 resolved key, its value, and which layer it came from. Run it from the Actions tab with
-**Run workflow**; it also runs on a push to `main` that touches the action itself.
+**Run workflow**; it also runs on any push or pull request that touches the action itself,
+so the demo is never merged unexecuted and a docs-only change does not pay for it.
 
 [`.github/dependabot.yml`](.github/dependabot.yml) keeps the actions referenced with
 `uses:` up to date, weekly. Minor and patch bumps are grouped into one PR; majors get
