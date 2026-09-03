@@ -641,6 +641,14 @@ The macOS smoke job is skipped by default so pull requests do not pay for macOS 
 Label a PR **`ci:macos`** to run it — worth doing for any change to runner-facing
 behaviour, since that job is what backs the macOS support claim above.
 
+[`.github/workflows/demo.yml`](.github/workflows/demo.yml) is a **run to look at rather
+than a suite to pass.** A green test run tells you the assertions held, not what the action
+does; this one is the four-job pipeline from this README — resolve, matrix, publish, read
+back — against this repository's own [`am-build-vars.example.yml`](am-build-vars.example.yml),
+with no fixtures and nothing asserted. Its job summary is the point: a table of every
+resolved key, its value, and which layer it came from. Run it from the Actions tab with
+**Run workflow**; it also runs on a push to `main` that touches the action itself.
+
 [`.github/dependabot.yml`](.github/dependabot.yml) keeps the actions referenced with
 `uses:` up to date, weekly. Minor and patch bumps are grouped into one PR; majors get
 their own. That covers the root `action.yml` too, so the `actions/upload-artifact` pin the
