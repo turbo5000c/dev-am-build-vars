@@ -370,18 +370,31 @@ about to write back.
 
 ## Inputs
 
-| Input | Default | Description |
-|---|---|---|
-| `config-file` | `''` | Explicit path to the file, turning discovery off. Leave empty to search the root then `.github/`. |
-| `defaults` | `''` | Fleet-wide defaults as a YAML mapping. Applied to any key the config file does not define. |
-| `export-env` | `'true'` | Write every resolved key to `$GITHUB_ENV`, overwriting any existing variable of the same name. Set `'false'` to leave the job environment untouched. |
-| `fail-on-missing` | `'false'` | Fail the step when the config file is absent, instead of falling back to defaults only. |
-| `share` | `''` | Values to publish to the shared store, as a YAML mapping. |
-| `share-env` | `''` | Names of environment variables to capture and publish, separated by whitespace or commas. |
-| `load-shared` | `'false'` | Read the shared store for this scope and apply it. Needs `actions: read`. |
-| `share-scope` | `github.ref_name` | The namespace shared values live in. Same scope, same store. |
-| `share-token` | `github.token` | Token used to look the store artifact up. |
-| `share-retention-days` | `''` | How long the store artifact is kept. Empty uses the repository default. |
+Every input is optional — the action runs with no `with:` block at all, discovering
+`am-build-vars.yml` and exporting whatever it finds. Inputs are strings, as always in
+Actions: for the boolean ones, `true`, `1`, `yes` and `on` are true in any case, anything
+else is false. Do not pad them — `load-shared: ' true '` is refused outright rather than
+half-honoured, because the composite's own step condition has no `trim()` to call.
+
+| Input | Takes | Default | Description |
+|---|---|---|---|
+| `config-file` | a path | `''` | Explicit path to the build variables file, relative to the workspace root; an absolute path is accepted too. Setting it turns discovery off and reads exactly this path. Leave empty to look for `am-build-vars.yml` in the repository root, then in `.github/`. |
+| `defaults` | a YAML mapping | `''` | Fleet-wide defaults, same syntax as the config file (JSON works too, being valid YAML). Applied to any key the config file does not define. Per top-level key — a replace, not a deep merge. |
+| `export-env` | a boolean | `'true'` | Write every resolved key to `$GITHUB_ENV` under its own name, so later steps in the job read it as `env.KEY` or `$KEY`. An exported name overwrites an existing variable of that name. Set `'false'` to leave the job environment untouched and consume the `json` output instead. |
+| `fail-on-missing` | a boolean | `'false'` | Fail the step when no config file exists, instead of carrying on with `defaults` alone. Turn it on to require every repository to carry the file. |
+| `share` | a YAML mapping | `''` | Values to publish to the shared store, same syntax as `defaults`. Merges into the existing store rather than replacing it, and outranks every other layer in this step. Needs `actions: read`. |
+| `share-env` | names, whitespace- or comma-separated | `''` | Names of environment variables to capture and publish — the form for anything computed during the run, since the value never has to survive YAML quoting. Each name must already be set or the step fails. A name given to both this and `share` takes its value from here. Needs `actions: read`. |
+| `load-shared` | a boolean | `'false'` | Read the shared store for this scope and apply it. Off by default: no API call, no extra permission. Outranks `defaults`, loses to the config file. Finding no store is not an error. Needs `actions: read`. |
+| `share-scope` | a string | `${{ github.ref_name }}` | The namespace shared values live in. Same scope, same store; different scopes are fully isolated. Set it explicitly — to a branch name, or a constant like `global` — when one ref has to read what another published. |
+| `share-token` | a token | `${{ github.token }}` | Token used to list the store artifact and start its download. The default is right nearly always; the job still needs `actions: read` for it. Pass a different token only to widen what the lookup can see. |
+| `share-retention-days` | a number of days | `''` | How long the store artifact is kept, passed straight to `actions/upload-artifact`. Empty uses the repository default, 90 days unless changed. This is how long a published value stays readable. |
+
+Which layer wins when several define the same key is [Precedence](#precedence).
+
+Beyond these, the action reads only what the runner sets for it — `GITHUB_ENV`,
+`GITHUB_OUTPUT`, `GITHUB_WORKSPACE`, `GITHUB_REPOSITORY`, `GITHUB_RUN_ID`,
+`GITHUB_WORKFLOW`, `GITHUB_SHA`, `GITHUB_API_URL`, `RUNNER_TEMP` — plus the variables
+`share-env` names. There is nothing else to set.
 
 ## Outputs
 

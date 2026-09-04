@@ -136,6 +136,83 @@ jobs:
                     len(action_description), DESCRIPTION_LIMIT - 1))
           PY
 
+      # The README's Inputs and Outputs tables are the reference a caller reads;
+      # action.yml is what the runner obeys. Nothing else notices when a new input
+      # ships undocumented, or when a default is changed in one file only.
+      - name: README documents every input and output
+        run: |
+          python3 - <<'PY'
+          import re, sys, yaml
+
+          with open("action.yml", encoding="utf-8") as fh:
+              meta = yaml.safe_load(fh)
+          with open("README.md", encoding="utf-8") as fh:
+              readme = fh.read()
+
+          CELL = re.compile(r"^\|\s*`([^`]+)`\s*\|")
+
+          def table_rows(heading):
+              """Names in the first column of the first table under a '## heading'."""
+              start = readme.index("\n## " + heading + "\n")
+              end = readme.index("\n## ", start + 1)
+              rows = []
+              for line in readme[start:end].splitlines():
+                  match = CELL.match(line)
+                  if match:
+                      rows.append([cell.strip() for cell in line.strip().strip("|").split("|")])
+              return rows
+
+          def unwrap(cell):
+              """A README default cell back to the raw string action.yml declares."""
+              cell = cell.strip()
+              if cell.startswith("`") and cell.endswith("`"):
+                  cell = cell[1:-1]
+              if len(cell) >= 2 and cell[0] == "'" and cell[-1] == "'":
+                  cell = cell[1:-1]
+              return cell
+
+          errors = []
+
+          input_rows = table_rows("Inputs")
+          documented = [row[0].strip("`") for row in input_rows]
+          declared = list((meta.get("inputs") or {}).keys())
+          if documented != declared:
+              for name in sorted(set(declared) - set(documented)):
+                  errors.append("input '{}' is declared in action.yml but missing from the "
+                                "README Inputs table".format(name))
+              for name in sorted(set(documented) - set(declared)):
+                  errors.append("the README Inputs table documents '{}', which action.yml does "
+                                "not declare".format(name))
+              if set(documented) == set(declared):
+                  # Reading order only -- not worth failing a build over.
+                  print("::warning file=README.md::the README Inputs table is not in "
+                        "action.yml order: {} vs {}".format(documented, declared))
+
+          for row in input_rows:
+              name = row[0].strip("`")
+              spec = (meta.get("inputs") or {}).get(name)
+              if not isinstance(spec, dict) or len(row) < 3:
+                  continue
+              actual = str(spec.get("default", ""))
+              shown = unwrap(row[2])
+              if shown != actual:
+                  errors.append("input '{}' defaults to {!r} in action.yml, but the README "
+                                "table says {!r}".format(name, actual, shown))
+
+          documented_outputs = [row[0].strip("`") for row in table_rows("Outputs")]
+          declared_outputs = list((meta.get("outputs") or {}).keys())
+          if documented_outputs != declared_outputs:
+              errors.append("the README Outputs table lists {} but action.yml declares {}"
+                            .format(documented_outputs, declared_outputs))
+
+          if errors:
+              for err in errors:
+                  print("::error file=README.md::{}".format(err))
+              sys.exit(1)
+          print("README documents all {} inputs and {} outputs, with matching defaults."
+                .format(len(declared), len(declared_outputs)))
+          PY
+
       - name: Example config file is valid YAML
         run: python3 -c "import yaml; yaml.safe_load(open('am-build-vars.example.yml'))"
 
