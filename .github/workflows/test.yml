@@ -138,7 +138,9 @@ jobs:
 
       # The README's Inputs and Outputs tables are the reference a caller reads;
       # action.yml is what the runner obeys. Nothing else notices when a new input
-      # ships undocumented, or when a default is changed in one file only.
+      # ships undocumented, or when a default is changed in one file only. Row order
+      # is not checked: the README groups inputs by what they are for, which is
+      # deliberately not the order action.yml declares them in.
       - name: README documents every input and output
         run: |
           python3 - <<'PY'
@@ -183,10 +185,6 @@ jobs:
               for name in sorted(set(documented) - set(declared)):
                   errors.append("the README Inputs table documents '{}', which action.yml does "
                                 "not declare".format(name))
-              if set(documented) == set(declared):
-                  # Reading order only -- not worth failing a build over.
-                  print("::warning file=README.md::the README Inputs table is not in "
-                        "action.yml order: {} vs {}".format(documented, declared))
 
           for row in input_rows:
               name = row[0].strip("`")
