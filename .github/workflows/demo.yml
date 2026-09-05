@@ -1,0 +1,239 @@
+# A real run of the action, deliberately kept out of the test suite.
+#
+# Nothing here asserts anything. There are no fixtures, no continue-on-error,
+# no expected failures and no comparisons — all of that lives in test.yml and
+# tests/local-test.sh, and reading a run of those tells you the tests passed,
+# not what the action does. This workflow is the pipeline shape the README
+# describes, wired to this repository's own am-build-vars.example.yml, so
+# opening a run shows what a consumer actually gets: real values, resolved by
+# the real composite action, in the four places they are hard to get.
+#
+#   1. config   reads the committed file, merges the workflow's defaults
+#   2. build    takes runs-on and a matrix from it — before any step runs
+#   3. publish  shares a value this run computed
+#   4. deploy   reads that value back with no job output carrying it
+#
+# The job summary of a run is the artifact worth looking at.
+name: Demo
+
+on:
+  workflow_dispatch:
+  # The same paths on both events: only what can change what the demo does, so
+  # the newest run on main is always current and a docs-only pull request pays
+  # nothing. Running on pull_request matters more than it looks -- a demo is
+  # the one workflow whose first execution must not be on main in public, and
+  # workflow_dispatch cannot cover that, because a workflow has to be on the
+  # default branch before it can be dispatched at all.
+  # Written out twice rather than shared with a YAML anchor: the Actions parser
+  # does not support anchors, and PyYAML accepts them, so that mistake passes
+  # every local check and fails only once GitHub reads the file.
+  push:
+    branches: [main]
+    paths:
+      - action.yml
+      - scripts/**
+      - am-build-vars.example.yml
+      - .github/workflows/demo.yml
+  pull_request:
+    paths:
+      - action.yml
+      - scripts/**
+      - am-build-vars.example.yml
+      - .github/workflows/demo.yml
+
+permissions:
+  contents: read
+
+jobs:
+  config:
+    name: 1 · Resolve this repository's variables
+    runs-on: ubuntu-latest
+    outputs:
+      # The verbose form lives here once. Everything downstream is a plain
+      # needs.config.outputs.<key>.
+      runner: ${{ fromJSON(steps.vars.outputs.json).runner }}
+      test_matrix: ${{ fromJSON(steps.vars.outputs.json).test_matrix }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # A consumer commits this file as am-build-vars.yml at its root. This
+      # repository ships it as am-build-vars.example.yml — the file the README
+      # tells you to copy — so putting it in place is what makes the discovery
+      # below the real thing rather than an explicit config-file input.
+      - name: Put the example config where a repository would commit it
+        run: cp am-build-vars.example.yml am-build-vars.yml
+
+      - name: Read the build variables
+        id: vars
+        uses: ./
+        with:
+          # What the fleet-wide managed workflow would carry inline. Every one
+          # of these is overridden by the committed file except 'runner' and
+          # 'deploy_target', which the file does not mention.
+          defaults: |
+            runner: ubuntu-latest
+            deploy_target: staging
+            node_version: "18"
+            coverage_enabled: false
+
+      - name: Everything below reads them as ordinary variables
+        env:
+          JSON: ${{ steps.vars.outputs.json }}
+          SOURCES: ${{ steps.vars.outputs.sources }}
+          USED: ${{ steps.vars.outputs.config-file-used }}
+        run: |
+          set -euo pipefail
+
+          # No prefix, no id, nothing declared up front. The key in the file is
+          # the variable name.
+          echo "node_version     = $node_version"
+          echo "coverage_enabled = $coverage_enabled"
+          echo "retries          = $retries"
+          echo "runner           = $runner"
+          echo "build_args       = $build_args"
+          printf 'release_notes    =\n%s' "$release_notes"
+
+          # The action never prints a value — its own log lines name keys and
+          # sources only. This workflow prints them, because showing them is the
+          # entire point of a demo and this config is a committed example.
+          {
+            echo "## 1 · Resolved from \`$USED\`"
+            echo
+            echo "The workflow passed four inline defaults. The committed file"
+            echo "overrode two of them and added four keys of its own."
+            echo
+            echo "| Key | Value | Came from |"
+            echo "|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, os
+          values = json.loads(os.environ["JSON"])
+          sources = json.loads(os.environ["SOURCES"])
+          label = {
+              "file": "the committed file",
+              "default": "the workflow's `defaults`",
+              "shared": "the shared store",
+              "share": "this step's `share`",
+          }
+          for key in sorted(values):
+              cell = values[key].replace("|", "\\|").replace("\n", "<br>") or "*(empty)*"
+              print("| `{}` | `{}` | {} |".format(key, cell, label[sources[key]]))
+          PY
+
+  build:
+    # runs-on and strategy.matrix are evaluated before any step runs, so no
+    # environment variable can reach them. This is what the config job is for.
+    name: 2 · Build on Node ${{ matrix.node }}
+    needs: config
+    runs-on: ${{ needs.config.outputs.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ${{ fromJSON(needs.config.outputs.test_matrix) }}
+    steps:
+      - name: The runner and the matrix both came from the config file
+        run: |
+          echo "runner : ${{ needs.config.outputs.runner }} (from the workflow's defaults)"
+          echo "node   : ${{ matrix.node }} (one leg of test_matrix, from the committed file)"
+
+  publish:
+    name: 3 · Publish a value this run computed
+    needs: [config, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Publishing merges into the store it is about to write back, so even a
+      # pure producer reads.
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # The kind of value that does not exist until the run is under way, and
+      # that GitHub gives you no way to hand to a later workflow.
+      - name: Compute an image tag the way a build would
+        run: echo "image_tag=sha-${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
+
+      - name: Publish it to the shared store
+        uses: ./
+        with:
+          # Names, not values: read straight out of the environment, so a tag
+          # containing a quote or a newline never passes through YAML.
+          share-env: image_tag
+          share: |
+            deploy_target: production
+            released_at: "${{ github.run_started_at }}"
+          # A per-run scope keeps every demo run telling the same clean story
+          # and leaves nothing behind. A real pipeline leaves this at its
+          # default of the ref name, or pins it to a branch.
+          share-scope: demo-${{ github.run_id }}
+          share-retention-days: '1'
+
+      - name: What was published
+        run: |
+          {
+            echo "## 3 · Published to the shared store"
+            echo
+            echo "| Key | Value | How |"
+            echo "|---|---|---|"
+            echo "| \`image_tag\` | \`$image_tag\` | \`share-env\` — computed by the step above |"
+            echo "| \`deploy_target\` | \`production\` | \`share\` — a literal |"
+            echo "| \`released_at\` | \`${{ github.run_started_at }}\` | \`share\` — a workflow expression |"
+            echo
+            echo "Scope \`demo-${{ github.run_id }}\`, in artifact"
+            echo "\`am-build-vars-store-demo-${{ github.run_id }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: 4 · Deploy reads it back
+    # This edge orders the two jobs and nothing else: the publish job above has
+    # no 'outputs:' block at all, so there is no job output for the value to
+    # have travelled through. It came from the store. A second workflow file in
+    # a later run would read it exactly this way, with no edge at all.
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read      # required to read the store
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Load the shared store
+        id: shared
+        uses: ./
+        with:
+          load-shared: true
+          share-scope: demo-${{ github.run_id }}
+          # The same fleet-wide default the config job carried. The store
+          # outranks it, so this job sees what the publish job decided —
+          # while a key nothing published still falls back to it.
+          defaults: |
+            deploy_target: staging
+            rollback_on_failure: true
+
+      - name: Deploy with a value another job computed
+        env:
+          RUN: ${{ steps.shared.outputs.shared-run-id }}
+          SOURCES: ${{ steps.shared.outputs.sources }}
+        run: |
+          set -euo pipefail
+          echo "deploying $image_tag to $deploy_target (released at $released_at)"
+
+          {
+            echo "## 4 · Read back in another job"
+            echo
+            echo "\`\$image_tag\` is **\`$image_tag\`** here. This job declares no"
+            echo "\`needs.publish.outputs\` — the publish job exposes no outputs at"
+            echo "all — so the store is the only route the value can have taken."
+            echo
+            echo "| Key | Value | Came from |"
+            echo "|---|---|---|"
+            echo "| \`image_tag\` | \`$image_tag\` | the store — computed by job 3 |"
+            echo "| \`deploy_target\` | \`$deploy_target\` | the store, outranking this job's default of \`staging\` |"
+            echo "| \`released_at\` | \`$released_at\` | the store |"
+            echo "| \`rollback_on_failure\` | \`$rollback_on_failure\` | this job's \`defaults\` — nothing published it |"
+            echo
+            echo "Raw \`sources\`: \`$SOURCES\`"
+            echo
+            echo "Provenance: run [\`$RUN\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/$RUN)."
+          } >> "$GITHUB_STEP_SUMMARY"
