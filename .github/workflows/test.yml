@@ -220,6 +220,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: bash tests/local-test.sh
+      - run: bash tests/promote-test.sh
 
   action:
     name: End-to-end
