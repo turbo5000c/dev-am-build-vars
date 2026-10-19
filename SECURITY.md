@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Report privately through GitHub Security Advisories:
-**[Report a vulnerability](https://github.com/dawg-io/am-build-vars/security/advisories/new)**.
+**[Report a vulnerability](https://github.com/greywolflabs/am-build-vars/security/advisories/new)**.
 
 Please do not open a public issue for anything with security impact. A public
 issue is a disclosure, and this action runs inside other people's CI.

@@ -2,7 +2,7 @@ name: 'AM Build Vars'
 description: >-
   Per-repository build variables from a committed file, exported as env vars and
   shared across jobs, workflows and runs.
-author: 'dawg-io'
+author: 'GreyWolf Labs'
 
 branding:
   # The shield is the ActionsManager mark; purple sets this action apart from

@@ -17,7 +17,7 @@ Read a repo's config:
 
 ```yaml
 - uses: actions/checkout@v7
-- uses: dawg-io/am-build-vars@v1
+- uses: greywolflabs/am-build-vars@v1
   with:
     defaults: |
       node_version: "20"
@@ -29,12 +29,12 @@ Hand a computed value to another workflow:
 
 ```yaml
 # in build.yml — publish it
-- uses: dawg-io/am-build-vars@v1
+- uses: greywolflabs/am-build-vars@v1
   with:
     share-env: image_tag
 
 # in deploy.yml, a later run — read it back
-- uses: dawg-io/am-build-vars@v1
+- uses: greywolflabs/am-build-vars@v1
   with:
     load-shared: true
 - run: ./deploy.sh "$image_tag"
@@ -128,7 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dawg-io/am-build-vars@v1
+      - uses: greywolflabs/am-build-vars@v1
         with:
           defaults: |
             node_version: "20"
@@ -238,7 +238,7 @@ jobs:
       - uses: actions/checkout@v7
       - run: echo "image_tag=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
-      - uses: dawg-io/am-build-vars@v1
+      - uses: greywolflabs/am-build-vars@v1
         with:
           share-env: image_tag
 ```
@@ -254,7 +254,7 @@ jobs:
       actions: read       # required to read the store
     steps:
       - uses: actions/checkout@v7
-      - uses: dawg-io/am-build-vars@v1
+      - uses: greywolflabs/am-build-vars@v1
         with:
           load-shared: true
 
@@ -274,7 +274,7 @@ Prefer `share-env` for computed values. It reads the value straight out of the e
 so a tag containing a quote, a brace or a newline never has to survive a trip through YAML:
 
 ```yaml
-- uses: dawg-io/am-build-vars@v1
+- uses: greywolflabs/am-build-vars@v1
   with:
     # names, whitespace- or comma-separated — safe whatever the values hold
     share-env: image_tag deploy_target
@@ -315,7 +315,7 @@ That default isolates, which also means a tag-triggered deploy will **not** see 
 on `main` published. When you want it to, name the scope explicitly on both sides:
 
 ```yaml
-- uses: dawg-io/am-build-vars@v1
+- uses: greywolflabs/am-build-vars@v1
   with:
     load-shared: true
     share-scope: main      # read what builds on main published
@@ -343,7 +343,7 @@ The `sources` output says which layer each key actually came from — worth asse
 test, and it prints no values:
 
 ```yaml
-- uses: dawg-io/am-build-vars@v1
+- uses: greywolflabs/am-build-vars@v1
   id: vars
   with:
     load-shared: true
@@ -400,7 +400,7 @@ For these, give the step an `id` and read the `json` output — every resolved k
 JSON object:
 
 ```yaml
-- uses: dawg-io/am-build-vars@v1
+- uses: greywolflabs/am-build-vars@v1
   id: vars
 - run: echo "Node ${{ fromJSON(steps.vars.outputs.json).node_version }}"
 ```
@@ -419,7 +419,7 @@ jobs:
       test_matrix: ${{ fromJSON(steps.vars.outputs.json).test_matrix }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dawg-io/am-build-vars@v1
+      - uses: greywolflabs/am-build-vars@v1
         id: vars
         with:
           defaults: |
@@ -642,9 +642,9 @@ other change in that release. Breaking changes get a new major and a new tag; th
 never arrive through `v1`.
 
 ```yaml
-- uses: dawg-io/am-build-vars@v1        # newest v1.x — recommended
-- uses: dawg-io/am-build-vars@v1.0.0    # exactly this release
-- uses: dawg-io/am-build-vars@6f4c9d2   # exactly this commit
+- uses: greywolflabs/am-build-vars@v1        # newest v1.x — recommended
+- uses: greywolflabs/am-build-vars@v1.0.0    # exactly this release
+- uses: greywolflabs/am-build-vars@6f4c9d2   # exactly this commit
 ```
 
 Pin the SHA if your policy is that a third-party action must never change under
