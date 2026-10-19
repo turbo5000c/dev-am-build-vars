@@ -8,6 +8,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 pinned to `@v1` picks up each release below as soon as it ships. Pin a full
 version, or a commit SHA, to opt out of that.
 
+## [1.0.1] - 2026-10-19
+
+### Changed
+
+- The repository moved to `greywolflabs/am-build-vars`. The README, security
+  policy and action metadata now point there and name GreyWolf Labs as author
+  and copyright holder. The previous path still redirects, so existing
+  workflows keep working.
+- The README is reorganized into segments, with a full inputs and outputs
+  reference.
+
 ## [1.0.0] - 2026-09-03
 
 First release. Everything below is the surface `v1` starts from.
